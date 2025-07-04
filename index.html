@@ -2,7 +2,6 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>早安美之程</title>
   <style>
     :root {
@@ -66,8 +65,6 @@
     }
 
     .area {
-      height: 300px;
-      overflow-y: auto;
       background: var(--milk-tea-light);
       border: 2px dashed var(--milk-tea-brown);
       border-radius: 10px;
@@ -76,24 +73,33 @@
       box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.1);
       display: flex;
       flex-direction: column;
+      height: 300px;
+    }
+
+    .player-zone {
+      flex-grow: 1;
+      overflow-y: auto;
     }
 
     #bench {
       grid-column: 1;
       grid-row: 1 / span 3;
       height: 630px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-start;
+    }
+
+    #court1, #court2, #court3,
+    #waitingA, #waitingB, #waitingC {
+      height: 300px;
     }
 
     #court1 { grid-column: 2; grid-row: 1; }
     #court2 { grid-column: 3; grid-row: 1; }
     #court3 { grid-column: 4; grid-row: 1; }
+
     #spacer1 { grid-column: 2; grid-row: 2; }
     #spacer2 { grid-column: 3; grid-row: 2; }
     #spacer3 { grid-column: 4; grid-row: 2; }
+
     #waitingA { grid-column: 2; grid-row: 3; }
     #waitingB { grid-column: 3; grid-row: 3; }
     #waitingC { grid-column: 4; grid-row: 3; }
@@ -115,15 +121,13 @@
 
     .area-controls {
       text-align: center;
-      margin-top: 10px;
+      margin-top: 5px;
     }
 
     .timer {
-      position: absolute;
-      bottom: 5px;
-      right: 10px;
       font-size: 12px;
       color: var(--milk-tea-dark);
+      text-align: right;
     }
   </style>
 </head>
@@ -136,56 +140,75 @@
   </div>
 
   <div class="grid-container">
-    <div class="area" id="bench"><h3>休息區</h3></div>
+    <div class="area" id="bench">
+      <h3>休息區</h3>
+      <div class="player-zone" id="bench-zone"></div>
+    </div>
 
     <div class="area" id="court1">
       <h3>場地 1</h3>
+      <div class="player-zone" id="court1-zone"></div>
       <div class="area-controls">
         <button onclick="endMatch('court1')">結束比賽</button>
+        <div class="timer" id="timer-court1"></div>
       </div>
-      <div class="timer" id="timer-court1"></div>
     </div>
+
     <div class="area" id="court2">
       <h3>場地 2</h3>
+      <div class="player-zone" id="court2-zone"></div>
       <div class="area-controls">
         <button onclick="endMatch('court2')">結束比賽</button>
+        <div class="timer" id="timer-court2"></div>
       </div>
-      <div class="timer" id="timer-court2"></div>
     </div>
+
     <div class="area" id="court3">
       <h3>場地 3</h3>
+      <div class="player-zone" id="court3-zone"></div>
       <div class="area-controls">
         <button onclick="endMatch('court3')">結束比賽</button>
+        <div class="timer" id="timer-court3"></div>
       </div>
-      <div class="timer" id="timer-court3"></div>
     </div>
 
     <div id="spacer1"></div>
     <div id="spacer2"></div>
     <div id="spacer3"></div>
 
-    <div class="area" id="waitingA"><h3>等待順位 1</h3></div>
-    <div class="area" id="waitingB"><h3>等待順位 2</h3></div>
-    <div class="area" id="waitingC"><h3>等待順位 3</h3></div>
+    <div class="area" id="waitingA">
+      <h3>等待順位 1</h3>
+      <div class="player-zone" id="waitingA-zone"></div>
+    </div>
+    <div class="area" id="waitingB">
+      <h3>等待順位 2</h3>
+      <div class="player-zone" id="waitingB-zone"></div>
+    </div>
+    <div class="area" id="waitingC">
+      <h3>等待順位 3</h3>
+      <div class="player-zone" id="waitingC-zone"></div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <script>
+    const areaIds = [
+      'bench-zone', 'court1-zone', 'court2-zone', 'court3-zone',
+      'waitingA-zone', 'waitingB-zone', 'waitingC-zone'
+    ];
+
     const maxPlayersPerArea = 4;
-    const timers = {};
-    const timerIntervals = {};
-    const areaIds = ['bench', 'court1', 'court2', 'court3', 'waitingA', 'waitingB', 'waitingC'];
+    const timers = {}, timerIntervals = {};
 
     areaIds.forEach(id => {
       Sortable.create(document.getElementById(id), {
         group: 'players',
         animation: 150,
-        touchStartThreshold: 5,
         onAdd: evt => {
           const to = evt.to;
           if (to.querySelectorAll('.player').length > maxPlayersPerArea) {
-            evt.from.appendChild(evt.item);
-            alert("此區最多只能容納 4 人");
+            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex]);
+            alert("此區最多只能容納4人");
           }
         }
       });
@@ -197,27 +220,22 @@
         const player = document.createElement('div');
         player.className = 'player';
         player.textContent = name;
-        document.getElementById('bench').appendChild(player);
+        document.getElementById('bench-zone').appendChild(player);
         document.getElementById('newPlayer').value = '';
       }
     }
 
     function endMatch(courtId) {
-      const court = document.getElementById(courtId);
-      const bench = document.getElementById('bench');
-      const waitingA = document.getElementById('waitingA');
-      const waitingB = document.getElementById('waitingB');
-      const waitingC = document.getElementById('waitingC');
+      const courtZone = document.getElementById(`${courtId}-zone`);
+      const benchZone = document.getElementById('bench-zone');
+      const waitingZones = ['waitingA-zone', 'waitingB-zone', 'waitingC-zone'].map(id => document.getElementById(id));
 
-      const players = court.querySelectorAll('.player');
-      players.forEach(player => bench.appendChild(player));
-
-      [...waitingA.querySelectorAll('.player')].forEach(player => court.appendChild(player));
+      courtZone.querySelectorAll('.player').forEach(p => benchZone.appendChild(p));
+      waitingZones[0].querySelectorAll('.player').forEach(p => courtZone.appendChild(p));
       startTimer(courtId);
-
-      [...waitingB.querySelectorAll('.player')].forEach(player => waitingA.appendChild(player));
-      [...waitingC.querySelectorAll('.player')].forEach(player => waitingB.appendChild(player));
-      waitingC.innerHTML = '<h3>等待順位 3</h3>';
+      waitingZones[1].querySelectorAll('.player').forEach(p => waitingZones[0].appendChild(p));
+      waitingZones[2].querySelectorAll('.player').forEach(p => waitingZones[1].appendChild(p));
+      waitingZones[2].innerHTML = '';
     }
 
     function startTimer(courtId) {
@@ -226,7 +244,7 @@
       const startTime = Date.now();
       timers[courtId] = startTime;
       timerIntervals[courtId] = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const elapsed = Math.floor((Date.now() - timers[courtId]) / 1000);
         const mins = Math.floor(elapsed / 60);
         const secs = elapsed % 60;
         timerDiv.textContent = `上場時間：${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
@@ -242,11 +260,7 @@
     }
 
     function resetLayout() {
-      areaIds.forEach(id => {
-        const area = document.getElementById(id);
-        if (id !== 'bench') area.innerHTML = `<h3>${area.querySelector('h3').textContent}</h3>`;
-      });
-      document.getElementById('bench').innerHTML = '<h3>休息區</h3>';
+      areaIds.forEach(id => document.getElementById(id).innerHTML = '');
     }
   </script>
 </body>
