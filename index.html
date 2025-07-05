@@ -233,10 +233,10 @@
         animation: 150,
         onAdd: evt => {
           const to = evt.to;
-          if (to.querySelectorAll('.player').length > maxPlayersPerArea) {
-            evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex]);
-            alert("此區最多只能容納4人");
-          }
+          if (to.id !== 'bench-zone' && to.querySelectorAll('.player').length > maxPlayersPerArea) {
+		  evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex]);
+		  alert("此區最多只能容納4人");
+		  }
         }
       });
     });
