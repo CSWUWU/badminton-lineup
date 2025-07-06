@@ -267,6 +267,7 @@
       waitingZones[1].querySelectorAll('.player').forEach(p => waitingZones[0].appendChild(p));
       waitingZones[2].querySelectorAll('.player').forEach(p => waitingZones[1].appendChild(p));
       waitingZones[2].innerHTML = '';
+      syncToDB();
     }
 
     function startTimer(courtId) {
