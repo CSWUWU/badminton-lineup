@@ -296,11 +296,11 @@
   </script>
 
   <!-- Firebase 同步 -->
-  <script type="module">
+   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+    import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
     import Sortable from "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm";
-
+  
     const firebaseConfig = {
       apiKey: "AIzaSyA3ADLVmW_VVf-cyKnhBcpwNAoKPB3DJnI",
       authDomain: "wusir-lineup.firebaseapp.com",
@@ -310,36 +310,62 @@
       messagingSenderId: "619285307932",
       appId: "1:619285307932:web:4b344f1c91298089c875d9"
     };
-
+  
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-
+  
+    const areaIds = [
+      'bench-zone', 'court1-zone', 'court2-zone', 'court3-zone',
+      'waitingA-zone', 'waitingB-zone', 'waitingC-zone'
+    ];
+  
+    function updateDOM(id, players) {
+      const zone = document.getElementById(id);
+      zone.innerHTML = '';
+      players.forEach(name => {
+        const div = document.createElement('div');
+        div.className = 'player';
+        div.textContent = name;
+        zone.appendChild(div);
+      });
+    }
+  
     function syncToDB() {
       areaIds.forEach(id => {
         const players = Array.from(document.getElementById(id).querySelectorAll('.player')).map(p => p.textContent);
-        set(ref(db, id), players);
+        set(ref(db, id), { players, updatedAt: Date.now() });
       });
     }
-
-    function syncFromDB() {
+  
+    function setupRealtimeSync() {
       areaIds.forEach(id => {
         const zoneRef = ref(db, id);
         onValue(zoneRef, snapshot => {
-          const zone = document.getElementById(id);
-          zone.innerHTML = '';
           const data = snapshot.val();
-          if (data) {
-            data.forEach(name => {
-              const div = document.createElement('div');
-              div.className = 'player';
-              div.textContent = name;
-              zone.appendChild(div);
-            });
+          if (data && data.players) {
+            updateDOM(id, data.players);
           }
         });
       });
     }
-
+  
+    function setupPolling() {
+      function fetchAll() {
+        areaIds.forEach(id => {
+          const zoneRef = ref(db, id);
+          get(zoneRef).then(snapshot => {
+            const data = snapshot.val();
+            if (data && data.players) {
+              updateDOM(id, data.players);
+            }
+          });
+        });
+      }
+  
+      fetchAll(); // 初次呼叫
+      setInterval(fetchAll, 4000); // 每 5 秒輪詢
+    }
+  
     window.addPlayer = function () {
       const name = document.getElementById('newPlayer').value.trim();
       if (name) {
@@ -351,12 +377,25 @@
         syncToDB();
       }
     };
-
+  
     window.resetLayout = function () {
       areaIds.forEach(id => document.getElementById(id).innerHTML = '');
       syncToDB();
     };
-
+  
+    window.endMatch = function (courtId) {
+      const courtZone = document.getElementById(`${courtId}-zone`);
+      const benchZone = document.getElementById('bench-zone');
+      const waitingZones = ['waitingA-zone', 'waitingB-zone', 'waitingC-zone'].map(id => document.getElementById(id));
+  
+      courtZone.querySelectorAll('.player').forEach(p => benchZone.appendChild(p));
+      waitingZones[0].querySelectorAll('.player').forEach(p => courtZone.appendChild(p));
+      waitingZones[1].querySelectorAll('.player').forEach(p => waitingZones[0].appendChild(p));
+      waitingZones[2].querySelectorAll('.player').forEach(p => waitingZones[1].appendChild(p));
+      waitingZones[2].innerHTML = '';
+      syncToDB();
+    };
+  
     areaIds.forEach(id => {
       Sortable.create(document.getElementById(id), {
         group: 'players',
@@ -364,8 +403,9 @@
         onEnd: () => syncToDB()
       });
     });
-
-    syncFromDB();
+  
+    setupRealtimeSync();
+    setupPolling();
   </script>
 </body>
 </html>
