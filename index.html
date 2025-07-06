@@ -17,10 +17,10 @@
       padding: 20px;
       background-color: var(--milk-tea-bg);
       color: var(--milk-tea-dark);
-      background-image: url('dogg.png');
-      background-repeat: no-repeat;
+	  background-image: url('dogg.png');
+	  background-repeat: no-repeat;
       background-size: auto 100px;  /* 高度固定 150px，寬度自動 */
-      background-position: calc(50% + 280px) bottom;
+      background-position: calc(50% + 220px) bottom; 
     }
 
     h1 {
@@ -267,7 +267,6 @@
       waitingZones[1].querySelectorAll('.player').forEach(p => waitingZones[0].appendChild(p));
       waitingZones[2].querySelectorAll('.player').forEach(p => waitingZones[1].appendChild(p));
       waitingZones[2].innerHTML = '';
-      syncToDB();
     }
 
     function startTimer(courtId) {
@@ -297,50 +296,119 @@
   </script>
 
   <!-- Firebase 同步 -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-    import Sortable from "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm";
+ 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+  import Sortable from "https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/+esm";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyA3ADLVmW_VVf-cyKnhBcpwNAoKPB3DJnI",
-      authDomain: "wusir-lineup.firebaseapp.com",
-      databaseURL: "https://wusir-lineup-default-rtdb.firebaseio.com",
-      projectId: "wusir-lineup",
-      storageBucket: "wusir-lineup.appspot.com",
-      messagingSenderId: "619285307932",
-      appId: "1:619285307932:web:4b344f1c91298089c875d9"
-    };
+  const firebaseConfig = {
+    apiKey: "AIzaSyA3ADLVmW_VVf-cyKnhBcpwNAoKPB3DJnI",
+    authDomain: "wusir-lineup.firebaseapp.com",
+    databaseURL: "https://wusir-lineup-default-rtdb.firebaseio.com",
+    projectId: "wusir-lineup",
+    storageBucket: "wusir-lineup.appspot.com",
+    messagingSenderId: "619285307932",
+    appId: "1:619285307932:web:4b344f1c91298089c875d9"
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-    function syncToDB() {
-      areaIds.forEach(id => {
-        const players = Array.from(document.getElementById(id).querySelectorAll('.player')).map(p => p.textContent);
-        set(ref(db, id), players);
+  const areaIds = [
+    'bench-zone', 'court1-zone', 'court2-zone', 'court3-zone',
+    'waitingA-zone', 'waitingB-zone', 'waitingC-zone'
+  ];
+
+  function syncToDB() {
+    areaIds.forEach(id => {
+      const players = Array.from(document.getElementById(id).querySelectorAll('.player')).map(p => p.textContent);
+      set(ref(db, id), { players, updatedAt: Date.now() });
+    });
+  }
+
+  function updateDOM(id, players) {
+    const zone = document.getElementById(id);
+    zone.innerHTML = '';
+    players.forEach(name => {
+      const div = document.createElement('div');
+      div.className = 'player';
+      div.textContent = name;
+      zone.appendChild(div);
+    });
+  }
+
+  function setupRealtimeSync() {
+    areaIds.forEach(id => {
+      const zoneRef = ref(db, id);
+      onValue(zoneRef, snapshot => {
+        const data = snapshot.val();
+        if (data && data.players) {
+          updateDOM(id, data.players);
+        }
       });
-    }
+    });
+  }
 
-    function syncFromDB() {
+  function setupPolling() {
+    function fetchAllZones() {
       areaIds.forEach(id => {
         const zoneRef = ref(db, id);
-        onValue(zoneRef, snapshot => {
-          const zone = document.getElementById(id);
-          zone.innerHTML = '';
+        get(zoneRef).then(snapshot => {
           const data = snapshot.val();
-          if (data) {
-            data.forEach(name => {
-              const div = document.createElement('div');
-              div.className = 'player';
-              div.textContent = name;
-              zone.appendChild(div);
-            });
+          if (data && data.players) {
+            updateDOM(id, data.players);
           }
         });
       });
     }
+    fetchAllZones(); // 初次抓取
+    setInterval(fetchAllZones, 5000); // 每 5 秒刷新
+  }
 
+  window.addPlayer = function () {
+    const name = document.getElementById('newPlayer').value.trim();
+    if (name) {
+      const player = document.createElement('div');
+      player.className = 'player';
+      player.textContent = name;
+      document.getElementById('bench-zone').appendChild(player);
+      document.getElementById('newPlayer').value = '';
+      syncToDB();
+    }
+  };
+
+  window.resetLayout = function () {
+    areaIds.forEach(id => document.getElementById(id).innerHTML = '');
+    syncToDB();
+  };
+
+  window.endMatch = function (courtId) {
+    const courtZone = document.getElementById(`${courtId}-zone`);
+    const benchZone = document.getElementById('bench-zone');
+    const waitingZones = ['waitingA-zone', 'waitingB-zone', 'waitingC-zone'].map(id => document.getElementById(id));
+
+    courtZone.querySelectorAll('.player').forEach(p => benchZone.appendChild(p));
+    waitingZones[0].querySelectorAll('.player').forEach(p => courtZone.appendChild(p));
+    startTimer(courtId);
+    waitingZones[1].querySelectorAll('.player').forEach(p => waitingZones[0].appendChild(p));
+    waitingZones[2].querySelectorAll('.player').forEach(p => waitingZones[1].appendChild(p));
+    waitingZones[2].innerHTML = '';
+    syncToDB();
+  };
+
+  areaIds.forEach(id => {
+    Sortable.create(document.getElementById(id), {
+      group: 'players',
+      animation: 150,
+      onEnd: () => syncToDB()
+    });
+  });
+
+  // 啟用即時監聽與輪詢備援
+  setupRealtimeSync();
+  setupPolling();
+</script>
     window.addPlayer = function () {
       const name = document.getElementById('newPlayer').value.trim();
       if (name) {
