@@ -33,6 +33,44 @@
       transition: background-color 0.3s;
     }
     button:hover { background-color: var(--milk-tea-dark); }
+    .delete-mode-btn.active { background-color: #d32f2f !important; }
+    .player {
+      position: relative;
+      padding: 8px 8px 8px 32px;
+      background: #f9f5f0; height: 19px; border: 1px solid var(--milk-tea-brown);
+      border-radius: 12px; margin: 6.5px 0; color: var(--milk-tea-dark);
+      font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: flex-start;
+      transition: background 0.2s;
+    }
+    .player .delete-x {
+      display: none;
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 18px;
+      border: none;
+      background: transparent;
+      color: #d32f2f;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      opacity: 0.8;
+      z-index: 2;
+      padding: 0;
+      line-height: 1;
+      transition: opacity 0.2s;
+    }
+    .player.delete-mode .delete-x {
+      display: block;
+    }
+    .player-name {
+      flex-grow: 1;
+      text-align: center;
+      display: block;
+      width: 100%;
+    }
     .grid-container {
       display: grid; grid-template-columns: 250px 250px 250px 250px;
       grid-template-rows: 300px 30px 300px; column-gap: 20px; row-gap: 0;
@@ -57,11 +95,6 @@
     #waitingB { grid-column: 3; grid-row: 3; }
     #waitingC { grid-column: 4; grid-row: 3; }
     .area h3 { text-align: center; color: var(--milk-tea-dark); }
-    .player {
-      padding: 8px; background: #f9f5f0; height: 19px; border: 1px solid var(--milk-tea-brown);
-      border-radius: 12px; margin: 6.5px 0; text-align: center; color: var(--milk-tea-dark);
-      font-size: 16px; font-weight: bold; display: flex; align-items: center; justify-content: center;
-    }
     .area-controls { text-align: center; margin-top: 5px; }
     .timer { font-size: 12px; color: var(--milk-tea-dark); text-align: right; }
     footer { text-align: center; margin-top: 40px; font-size: 14px; color: var(--milk-tea-dark); }
@@ -81,6 +114,7 @@
     <input type="text" id="newPlayer" placeholder="輸入隊員名稱">
     <button onclick="addPlayer()">新增隊員</button>
     <button id="resetBtn">重置</button>
+    <button id="deleteModeBtn" class="delete-mode-btn">刪除球員</button>
   </div>
   <div class="grid-container">
     <div class="area" id="bench"><h3>休息區</h3><div class="player-zone" id="bench-zone"></div></div>
@@ -134,22 +168,31 @@
     const timers = {}, timerIntervals = {};
     let isLocalMoving = false;
     let localSyncCount = 0;
+    let deleteMode = false;
 
     function updateDOM(id, players) {
       if (isLocalMoving) return;
       const zone = document.getElementById(id);
       zone.innerHTML = '';
-      players.forEach(name => {
+      players.forEach((name, idx) => {
         const div = document.createElement('div');
         div.className = 'player';
-        div.textContent = name;
+        // 名字用 span 包起來
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'player-name';
+        nameSpan.textContent = name;
+        div.appendChild(nameSpan);
         zone.appendChild(div);
       });
+      // 如果在刪除模式，補上 x
+      if (deleteMode) addDeleteXToAll();
     }
     function syncToDB() {
       localSyncCount = areaIds.length;
       areaIds.forEach(id => {
-        const players = Array.from(document.getElementById(id).querySelectorAll('.player')).map(p => p.textContent);
+        const players = Array.from(document.getElementById(id).querySelectorAll('.player')).map(p =>
+          p.querySelector('.player-name')?.textContent || ''
+        );
         set(ref(db, id), { players, updatedAt: Date.now() });
       });
     }
@@ -216,17 +259,24 @@
         }
       });
     });
+
+    // 新增球員
     window.addPlayer = function () {
       const name = document.getElementById('newPlayer').value.trim();
       if (name) {
         const player = document.createElement('div');
         player.className = 'player';
-        player.textContent = name;
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'player-name';
+        nameSpan.textContent = name;
+        player.appendChild(nameSpan);
         document.getElementById('bench-zone').appendChild(player);
         document.getElementById('newPlayer').value = '';
         syncToDB();
+        if (deleteMode) addDeleteXToAll();
       }
     };
+
     // --- 重置按鈕防誤觸機制 ---
     let resetClickCount = 0;
     let resetTimer = null;
@@ -250,6 +300,48 @@
       }
     });
     // --- end ---
+
+    // --- 刪除模式功能 ---
+    function addDeleteXToAll() {
+      areaIds.forEach(id => {
+        document.querySelectorAll(`#${id} .player`).forEach(div => {
+          if (!div.querySelector('.delete-x')) {
+            const xBtn = document.createElement('button');
+            xBtn.className = 'delete-x';
+            xBtn.textContent = '✕';
+            xBtn.onclick = function(e) {
+              e.stopPropagation();
+              div.remove();
+              syncToDB();
+            };
+            div.insertBefore(xBtn, div.firstChild);
+          }
+          div.classList.add('delete-mode');
+          div.querySelector('.delete-x').style.display = 'block';
+        });
+      });
+    }
+    function removeDeleteXFromAll() {
+      areaIds.forEach(id => {
+        document.querySelectorAll(`#${id} .player`).forEach(div => {
+          const xBtn = div.querySelector('.delete-x');
+          if (xBtn) xBtn.remove();
+          div.classList.remove('delete-mode');
+        });
+      });
+    }
+    document.getElementById('deleteModeBtn').addEventListener('click', function () {
+      deleteMode = !deleteMode;
+      this.classList.toggle('active', deleteMode);
+      this.textContent = deleteMode ? '結束刪除' : '刪除球員';
+      if (deleteMode) {
+        addDeleteXToAll();
+      } else {
+        removeDeleteXFromAll();
+      }
+    });
+    // --- end ---
+
     window.endMatch = function (courtId) {
       const courtZone = document.getElementById(`${courtId}-zone`);
       const benchZone = document.getElementById('bench-zone');
@@ -261,6 +353,7 @@
       waitingZones[2].querySelectorAll('.player').forEach(p => waitingZones[1].appendChild(p));
       waitingZones[2].innerHTML = '';
       syncToDB();
+      if (deleteMode) addDeleteXToAll();
     };
     function startTimer(courtId) {
       stopTimer(courtId);
