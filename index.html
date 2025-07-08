@@ -80,7 +80,7 @@
   <div id="controls">
     <input type="text" id="newPlayer" placeholder="輸入隊員名稱">
     <button onclick="addPlayer()">新增隊員</button>
-    <button onclick="resetLayout()">重置</button>
+    <button id="resetBtn">重置</button>
   </div>
   <div class="grid-container">
     <div class="area" id="bench"><h3>休息區</h3><div class="player-zone" id="bench-zone"></div></div>
@@ -227,10 +227,29 @@
         syncToDB();
       }
     };
-    window.resetLayout = function () {
-      areaIds.forEach(id => document.getElementById(id).innerHTML = '');
-      syncToDB();
-    };
+    // --- 重置按鈕防誤觸機制 ---
+    let resetClickCount = 0;
+    let resetTimer = null;
+    document.getElementById('resetBtn').addEventListener('click', function () {
+      resetClickCount++;
+      if (resetClickCount === 1) {
+        this.textContent = '再按2次重置';
+        resetTimer = setTimeout(() => {
+          resetClickCount = 0;
+          this.textContent = '重置';
+        }, 10000);
+      } else if (resetClickCount === 2) {
+        this.textContent = '再按1次重置';
+      } else if (resetClickCount === 3) {
+        clearTimeout(resetTimer);
+        resetClickCount = 0;
+        this.textContent = '重置';
+        areaIds.forEach(id => document.getElementById(id).innerHTML = '');
+        syncToDB();
+        alert('已重置所有區域！');
+      }
+    });
+    // --- end ---
     window.endMatch = function (courtId) {
       const courtZone = document.getElementById(`${courtId}-zone`);
       const benchZone = document.getElementById('bench-zone');
